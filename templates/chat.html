@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nébula · Asistente</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"></head>
+<body>
+
+<div class="chat-shell">
+
+  <header class="chat-header">
+    <div class="orb"></div>
+    <div class="header-info">
+      <h1>Nébula</h1>
+      <div class="status-line"><span class="status-dot"></span> en línea · responde al instante</div>
+    </div>
+    <button class="header-action" id="clearBtn" title="Reiniciar conversación" aria-label="Reiniciar conversación">↺</button>
+  </header>
+
+  <div class="chat-body" id="chatBody">
+    <div class="day-divider">Hoy</div>
+
+    <div class="msg-row bot">
+      <div class="avatar-mini"></div>
+      <div class="bubble-wrap">
+        <div class="bubble">¡Hola! Soy Nébula 👋 Este es un template de chatbot listo para conectar a tu propia lógica o API. ¿En qué te ayudo?</div>
+        <span class="timestamp">09:41</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="quick-replies" id="quickReplies">
+    <button class="chip" data-msg="¿Qué puedes hacer?">¿Qué puedes hacer?</button>
+    <button class="chip" data-msg="Necesito soporte técnico">Soporte técnico</button>
+    <button class="chip" data-msg="Quiero hablar con una persona">Hablar con una persona</button>
+  </div>
+
+  <div class="chat-input">
+    <textarea id="msgInput" rows="1" placeholder="Escribe un mensaje…"></textarea>
+    <button class="send-btn" id="sendBtn" aria-label="Enviar mensaje">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <path d="M4 12L20 4L14 20L11 13L4 12Z" fill="currentColor"/>
+      </svg>
+    </button>
+  </div>
+  <div class="footer-note">Nébula puede cometer errores · verifica información importante</div>
+
+</div>
+
+<script>
+  const chatBody   = document.getElementById('chatBody');
+  const msgInput   = document.getElementById('msgInput');
+  const sendBtn    = document.getElementById('sendBtn');
+  const clearBtn   = document.getElementById('clearBtn');
+  const quickReplies = document.getElementById('quickReplies');
+
+  function timeNow(){
+    const d = new Date();
+    return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+  }
+
+  function scrollToBottom(){
+    chatBody.scrollTop = chatBody.scrollHeight;
+  }
+
+  function addMessage(text, sender){
+    const row = document.createElement('div');
+    row.className = 'msg-row ' + sender;
+    row.innerHTML = `
+      <div class="avatar-mini"></div>
+      <div class="bubble-wrap">
+        <div class="bubble"></div>
+        <span class="timestamp">${timeNow()}</span>
+      </div>`;
+    row.querySelector('.bubble').textContent = text;
+    chatBody.appendChild(row);
+    scrollToBottom();
+  }
+
+  function showTyping(){
+    const row = document.createElement('div');
+    row.className = 'msg-row bot typing-row';
+    row.id = 'typingRow';
+    row.innerHTML = `
+      <div class="avatar-mini"></div>
+      <div class="typing-bubble"><span></span><span></span><span></span></div>`;
+    chatBody.appendChild(row);
+    scrollToBottom();
+  }
+
+  function hideTyping(){
+    const row = document.getElementById('typingRow');
+    if (row) row.remove();
+  }
+
+  // --- FUNCIÓN CORREGIDA: CONEXIÓN REAL AL BACKEND ---
+  async function handleSend(customText){
+    const text = (customText !== undefined ? customText : msgInput.value).trim();
+    if (!text) return;
+
+    addMessage(text, 'user');
+    msgInput.value = '';
+    msgInput.style.height = 'auto';
+    sendBtn.disabled = true;
+
+    showTyping();
+
+    try {
+      // Enviamos el mensaje a tu servidor Flask (app.py)
+      const response = await fetch('/ask', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({ 'msg': text })
+      });
+
+      const botText = await response.text(); // Recibimos la respuesta de Python
+      hideTyping();
+      addMessage(botText, 'bot');
+    } catch (error) {
+      hideTyping();
+      addMessage("Lo siento, hubo un error conectando con el servidor.", 'bot');
+      console.error("Error:", error);
+    } finally {
+      sendBtn.disabled = false;
+    }
+  }
+
+  sendBtn.addEventListener('click', () => handleSend());
+
+  msgInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey){
+      e.preventDefault();
+      handleSend();
+    }
+  });
+
+  msgInput.addEventListener('input', () => {
+    msgInput.style.height = 'auto';
+    msgInput.style.height = Math.min(msgInput.scrollHeight, 110) + 'px';
+  });
+
+  quickReplies.addEventListener('click', (e) => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    handleSend(chip.dataset.msg);
+  });
+
+  clearBtn.addEventListener('click', () => {
+    chatBody.innerHTML = `
+      <div class="day-divider">Hoy</div>
+      <div class="msg-row bot">
+        <div class="avatar-mini"></div>
+        <div class="bubble-wrap">
+          <div class="bubble">Conversación reiniciada. ¿En qué te ayudo?</div>
+          <span class="timestamp">${timeNow()}</span>
+        </div>
+      </div>`;
+  });
+</script>
+</body>
+</html>
